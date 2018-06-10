@@ -1200,6 +1200,24 @@ public final class ModelVisitor extends DefaultTreePathVisitor {
 
     @Override
     public void visit(PHPDocTypeTag node) {
+        // #241740 for @mixin tag
+        if (node.getKind().equals(PHPDocTag.Type.MIXIN)) {
+            Scope currentScope = modelBuilder.getCurrentScope();
+            if (currentScope instanceof ClassScopeImpl) {
+                ClassScopeImpl classScope = (ClassScopeImpl) currentScope;
+                List<? extends PhpDocTypeTagInfo> tagInfos = PhpDocTypeTagInfo.create(node, classScope);
+                Set<QualifiedName> names = new HashSet<>();
+                tagInfos.stream()
+                        .filter(tagInfo -> !tagInfo.getName().isEmpty())
+                        .map(tagInfo -> tagInfo.getTypeName())
+                        .filter(typeName -> (typeName != null && !typeName.isEmpty()))
+                        .map(typeName -> VariousUtils.qualifyTypeNames(typeName, node.getStartOffset(), classScope))
+                        .forEach(qualifiedTypeName -> names.add(QualifiedName.create(qualifiedTypeName)));
+                if (!names.isEmpty()) {
+                    classScope.addFQMixinClassNames(names);
+                }
+            }
+        }
         occurencesBuilder.prepare(node, modelBuilder.getCurrentScope());
         super.visit(node);
     }
